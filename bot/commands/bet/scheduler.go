@@ -48,7 +48,7 @@ func betSchedulerWorker(c *components.Components, client *bot.Client) error {
 			}
 
 			// ハンドラーを呼び出してメッセージを更新
-			if err := updateBetMessage(c, tx, client, betHost.ID, discord.LocaleJapanese); err != nil {
+			if err := updateBetMessage(c, tx, client, betHost.ID, discord.Locale(betHost.Locale)); err != nil {
 				return err
 			}
 			tx.Save(&betHost)

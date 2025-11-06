@@ -110,6 +110,7 @@ func handlePollConfig(c *components.Components, event *events.ModalSubmitInterac
 		OwnerID:             event.User().ID,
 		AllowVoteDestChange: allowVoteChange,
 		VoteDeadline:        voteDeadline,
+		Locale:              string(locale),
 	}
 
 	// Save to database
