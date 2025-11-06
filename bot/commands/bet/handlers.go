@@ -623,8 +623,8 @@ func handleDecideResult(c *components.Components, event *events.ModalSubmitInter
 			tx.Save(&betHost)
 
 			resultMessage = i18n.BuildContext().
-			WithText("amount", fmt.Sprintf("%d", totalRefunded)).
-			ReplaceText(i18n.TranslateText(locale, "command.bet.message.cancelled"))
+				WithText("amount", fmt.Sprintf("%d", totalRefunded)).
+				ReplaceText(i18n.TranslateText(locale, "command.bet.message.cancelled"))
 		} else {
 			// Normal win: distribute to winners
 			// Calculate total pool
@@ -680,9 +680,9 @@ func handleDecideResult(c *components.Components, event *events.ModalSubmitInter
 			}
 
 			resultMessage = i18n.BuildContext().
-			WithText("winners", strings.Join(winnerNames, ", ")).
-			WithText("total_pool", fmt.Sprintf("%d", totalPool)).
-			ReplaceText(i18n.TranslateText(locale, "command.bet.message.result"))
+				WithText("winners", strings.Join(winnerNames, ", ")).
+				WithText("total_pool", fmt.Sprintf("%d", totalPool)).
+				ReplaceText(i18n.TranslateText(locale, "command.bet.message.result"))
 		}
 
 		// Update message
