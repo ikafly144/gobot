@@ -238,6 +238,7 @@ errors.not_enough.player: "Not enough players"
 command.bet.description: "Bet gopoints on various games"
 command.bet.option.title.description: "Bet title"
 command.bet.option.mode.description: "Bet mode"
+command.bet.option.allow_vote_change.name: allow-vote-change
 command.bet.option.allow_vote_change.description: "Allow users to change their vote destination after voting (optional, default: false)"
 command.bet.vote_type.guess: "Guess"
 command.bet.vote_type.race: "Race"
