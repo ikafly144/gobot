@@ -15,6 +15,7 @@ import (
 	"github.com/sabafly/gobot/bot/components"
 	"github.com/sabafly/gobot/database/models"
 	"github.com/sabafly/gobot/internal/errors"
+	"github.com/sabafly/gobot/internal/i18n"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -26,6 +27,7 @@ func handlePollConfig(c *components.Components, event *events.ModalSubmitInterac
 		return errors.NewError(err)
 	}
 
+	locale := event.Locale()
 	parts := strings.Split(event.Data.CustomID, ":")
 	if len(parts) < 3 {
 		return errors.NewError(fmt.Errorf("invalid custom ID"))
@@ -51,7 +53,7 @@ func handlePollConfig(c *components.Components, event *events.ModalSubmitInterac
 		mins, err := strconv.Atoi(deadlineStr)
 		if err != nil {
 			if err := event.RespondMessage(discord.NewMessageBuilder().
-				SetContent("有効な投票締め切り時間を分単位で入力してください。").
+				SetContent(i18n.TranslateText(locale, "command.bet.error.invalid_deadline")).
 				SetFlags(discord.MessageFlagEphemeral)); err != nil {
 				return errors.NewError(err)
 			}
@@ -65,7 +67,7 @@ func handlePollConfig(c *components.Components, event *events.ModalSubmitInterac
 	for _, opt := range options {
 		if utf8.RuneCountInString(opt) > 100 {
 			if err := event.RespondMessage(discord.NewMessageBuilder().
-				SetContent(fmt.Sprintf("選択肢 '%s' が長すぎます。100文字以内にしてください。", opt)).
+				SetContentf(i18n.TranslateText(locale, "command.bet.error.option_too_long"), opt).
 				SetFlags(discord.MessageFlagEphemeral)); err != nil {
 				return errors.NewError(err)
 			}
@@ -78,7 +80,7 @@ func handlePollConfig(c *components.Components, event *events.ModalSubmitInterac
 
 	if len(validOptions) < 2 {
 		if err := event.RespondMessage(discord.NewMessageBuilder().
-			SetContent("少なくとも2つの選択肢が必要です。").
+			SetContent(i18n.TranslateText(locale, "command.bet.error.min_options")).
 			SetFlags(discord.MessageFlagEphemeral)); err != nil {
 			return errors.NewError(err)
 		}
@@ -86,7 +88,7 @@ func handlePollConfig(c *components.Components, event *events.ModalSubmitInterac
 	}
 	if len(validOptions) > 25 {
 		if err := event.RespondMessage(discord.NewMessageBuilder().
-			SetContent("選択肢は最大25個までです。").
+			SetContent(i18n.TranslateText(locale, "command.bet.error.max_options")).
 			SetFlags(discord.MessageFlagEphemeral)); err != nil {
 			return errors.NewError(err)
 		}
@@ -141,7 +143,7 @@ func handlePollConfig(c *components.Components, event *events.ModalSubmitInterac
 	).Where("host_id = ?", betHost.ID).Find(&optionModels)
 
 	// Create layout components
-	layoutComponents := createBetLayout(betHost, optionModels, c.GormDB())
+	layoutComponents := createBetLayout(betHost, optionModels, c.GormDB(), locale)
 
 	// Respond with the bet message using MessageBuilder with ComponentV2
 	msg, err := event.Client().Rest.CreateMessage(event.Channel().ID(), discord.NewMessageBuilder().
@@ -160,7 +162,7 @@ func handlePollConfig(c *components.Components, event *events.ModalSubmitInterac
 	}
 
 	if err := event.RespondMessage(discord.NewMessageBuilder().
-		SetContent("投票を作成しました").
+		SetContent(i18n.TranslateText(locale, "command.bet.message.created")).
 		SetFlags(discord.MessageFlagEphemeral)); err != nil {
 		return errors.NewError(err)
 	}
@@ -170,6 +172,7 @@ func handlePollConfig(c *components.Components, event *events.ModalSubmitInterac
 
 // handleVoteButton handles clicking a vote button
 func handleVoteButton(c *components.Components, event *events.ComponentInteractionCreate) errors.Error {
+	locale := event.Locale()
 	parts := strings.Split(event.Data.CustomID(), ":")
 	if len(parts) < 4 {
 		return errors.NewError(fmt.Errorf("invalid custom ID"))
@@ -195,7 +198,7 @@ func handleVoteButton(c *components.Components, event *events.ComponentInteracti
 		// Check if voting is open
 		if betHost.Status != string(models.BetStatusVoting) {
 			if err := event.CreateMessage(discord.NewMessageCreateBuilder().
-				SetContent("投票は現在受け付けていません。").
+				SetContent(i18n.TranslateText(locale, "command.bet.error.voting_closed")).
 				SetFlags(discord.MessageFlagEphemeral).
 				Build()); err != nil {
 				return err
@@ -216,13 +219,13 @@ func handleVoteButton(c *components.Components, event *events.ComponentInteracti
 		if result.Error == nil {
 			if !betHost.AllowVoteDestChange && existingBet.OptionID != optionID {
 				if err := event.RespondMessage(discord.NewMessageBuilder().
-					SetContentf("あなたは既に %s に %dpt 投票しています。\n投票先を変更することはできません。", existingBet.Option.OptionText, existingBet.Amount).
+					SetContentf(i18n.TranslateText(locale, "command.bet.error.already_voted_no_change"), existingBet.Option.OptionText, existingBet.Amount).
 					SetFlags(discord.MessageFlagEphemeral)); err != nil {
 					return err
 				}
 				return nil
 			}
-			status += fmt.Sprintf("あなたは既に %s に %dpt 投票しています。\n", existingBet.Option.OptionText, existingBet.Amount)
+			status += fmt.Sprintf(i18n.TranslateText(locale, "command.bet.error.already_voted_status"), existingBet.Option.OptionText, existingBet.Amount)
 		}
 
 		var totalBets int64
@@ -236,19 +239,19 @@ func handleVoteButton(c *components.Components, event *events.ComponentInteracti
 			return err
 		}
 
-		status += fmt.Sprintf("現在の総投票数: %d票, 総投票額: %dpt\n", totalBets, totalAmount.Total)
+		status += fmt.Sprintf(i18n.TranslateText(locale, "command.bet.message.current_stats"), totalBets, totalAmount.Total)
 
 		// Show modal to enter bet amount
 		if err := event.Modal(discord.NewModalCreateBuilder().
 			SetCustomID(fmt.Sprintf("bet:vote:%s:%s", hostID, optionID)).
-			SetTitle(fmt.Sprintf("%s に投票", option.OptionText)).
+			SetTitle(fmt.Sprintf(i18n.TranslateText(locale, "command.bet.modal.vote.title"), option.OptionText)).
 			SetComponents(
 				discord.NewTextDisplay(status),
-				discord.NewLabel("投票するポイント数",
+				discord.NewLabel(i18n.TranslateText(locale, "command.bet.modal.vote.input.amount.label"),
 					discord.TextInputComponent{
 						CustomID:    "amount",
 						Style:       discord.TextInputStyleShort,
-						Placeholder: "投票するGoポイント数を入力",
+						Placeholder: i18n.TranslateText(locale, "command.bet.modal.vote.input.amount.placeholder"),
 						Required:    true,
 						MinLength:   ptr(1),
 						MaxLength:   10,
@@ -267,6 +270,7 @@ func handleVoteButton(c *components.Components, event *events.ComponentInteracti
 
 // handleVote handles the vote submission
 func handleVote(c *components.Components, event *events.ModalSubmitInteractionCreate) errors.Error {
+	locale := event.Locale()
 	parts := strings.Split(event.Data.CustomID, ":")
 	if len(parts) < 4 {
 		return errors.NewError(fmt.Errorf("invalid custom ID"))
@@ -286,7 +290,7 @@ func handleVote(c *components.Components, event *events.ModalSubmitInteractionCr
 	amount, err := strconv.ParseInt(amountStr, 10, 64)
 	if err != nil || amount <= 0 {
 		if err := event.CreateMessage(discord.NewMessageCreateBuilder().
-			SetContent("有効なポイント数を入力してください。").
+			SetContent(i18n.TranslateText(locale, "command.bet.error.invalid_amount")).
 			SetFlags(discord.MessageFlagEphemeral).
 			Build()); err != nil {
 			return errors.NewError(err)
@@ -311,7 +315,7 @@ func handleVote(c *components.Components, event *events.ModalSubmitInteractionCr
 
 		if gopoint.Points < amount {
 			if err := event.CreateMessage(discord.NewMessageCreateBuilder().
-				SetContent(fmt.Sprintf("Goポイントが不足しています。現在: %dpt", gopoint.Points)).
+				SetContentf(i18n.TranslateText(locale, "command.bet.error.insufficient_points"), gopoint.Points).
 				SetFlags(discord.MessageFlagEphemeral).
 				Build()); err != nil {
 				return err
@@ -328,7 +332,7 @@ func handleVote(c *components.Components, event *events.ModalSubmitInteractionCr
 			// Check if amount decrease is attempted (always prohibited)
 			if amount < existingBet.Amount {
 				if err := event.CreateMessage(discord.NewMessageCreateBuilder().
-					SetContent("投票額を減らすことはできません。").
+					SetContent(i18n.TranslateText(locale, "command.bet.error.cannot_decrease")).
 					SetFlags(discord.MessageFlagEphemeral).
 					Build()); err != nil {
 					return err
@@ -346,7 +350,7 @@ func handleVote(c *components.Components, event *events.ModalSubmitInteractionCr
 
 				if !betHost.AllowVoteDestChange {
 					if err := event.CreateMessage(discord.NewMessageCreateBuilder().
-						SetContent("投票先を変更することはできません。").
+						SetContent(i18n.TranslateText(locale, "command.bet.error.cannot_change_dest")).
 						SetFlags(discord.MessageFlagEphemeral).
 						Build()); err != nil {
 						return err
@@ -373,12 +377,12 @@ func handleVote(c *components.Components, event *events.ModalSubmitInteractionCr
 				return err
 			}
 
-			if err := updateBetMessage(c, tx, event.Client(), hostID); err != nil {
+			if err := updateBetMessage(c, tx, event.Client(), hostID, locale); err != nil {
 				return err
 			}
 
 			if err := event.CreateMessage(discord.NewMessageCreateBuilder().
-				SetContent(fmt.Sprintf("投票を更新しました: %dpt", amount)).
+				SetContentf(i18n.TranslateText(locale, "command.bet.message.updated"), amount).
 				SetFlags(discord.MessageFlagEphemeral).
 				Build()); err != nil {
 				return err
@@ -407,12 +411,12 @@ func handleVote(c *components.Components, event *events.ModalSubmitInteractionCr
 		}
 
 		// Update the bet message
-		if err := updateBetMessage(c, tx, event.Client(), hostID); err != nil {
+		if err := updateBetMessage(c, tx, event.Client(), hostID, locale); err != nil {
 			return err
 		}
 
 		if err := event.CreateMessage(discord.NewMessageCreateBuilder().
-			SetContent(fmt.Sprintf("投票しました: %dpt", amount)).
+			SetContentf(i18n.TranslateText(locale, "command.bet.message.voted"), amount).
 			SetFlags(discord.MessageFlagEphemeral).
 			Build()); err != nil {
 			return err
@@ -424,7 +428,7 @@ func handleVote(c *components.Components, event *events.ModalSubmitInteractionCr
 	return nil
 }
 
-func updateBetMessage(c *components.Components, db *gorm.DB, client *bot.Client, hostID uuid.UUID) error {
+func updateBetMessage(c *components.Components, db *gorm.DB, client *bot.Client, hostID uuid.UUID, locale discord.Locale) error {
 	var betHost models.BetHost
 	if err := db.First(&betHost, "id = ?", hostID).Error; err != nil {
 		return err
@@ -435,7 +439,7 @@ func updateBetMessage(c *components.Components, db *gorm.DB, client *bot.Client,
 		clause.OrderByColumn{Column: clause.Column{Name: "index"}, Desc: false},
 	).Where("host_id = ?", hostID).Find(&options)
 
-	layoutComponents := createBetLayout(&betHost, options, db)
+	layoutComponents := createBetLayout(&betHost, options, db, locale)
 	_, err := client.Rest.UpdateMessage(betHost.ChannelID, betHost.MessageID, discord.NewMessageBuilder().
 		SetIsComponentsV2(true).
 		SetComponents(layoutComponents...).
@@ -445,6 +449,7 @@ func updateBetMessage(c *components.Components, db *gorm.DB, client *bot.Client,
 
 // handleDecideButton handles the decide result button
 func handleDecideButton(c *components.Components, event *events.ComponentInteractionCreate) errors.Error {
+	locale := event.Locale()
 	parts := strings.Split(event.Data.CustomID(), ":")
 	if len(parts) < 3 {
 		return errors.NewError(fmt.Errorf("invalid custom ID"))
@@ -464,7 +469,7 @@ func handleDecideButton(c *components.Components, event *events.ComponentInterac
 		// Check if user is owner
 		if !betHost.IsOwner(event.User().ID) {
 			if err := event.CreateMessage(discord.NewMessageCreateBuilder().
-				SetContent("結果の決定は主催者のみが行えます。").
+				SetContent(i18n.TranslateText(locale, "command.bet.error.only_organizer_decide")).
 				SetFlags(discord.MessageFlagEphemeral).
 				Build()); err != nil {
 				return err
@@ -482,9 +487,9 @@ func handleDecideButton(c *components.Components, event *events.ComponentInterac
 		selectOptions := make([]discord.StringSelectMenuOption, 0, len(options)+1)
 		// Add cancellation option first
 		selectOptions = append(selectOptions, discord.StringSelectMenuOption{
-			Label:       "キャンセル（全額返金）",
+			Label:       i18n.TranslateText(locale, "command.bet.cancel_option.label"),
 			Value:       "cancel",
-			Description: "ベットをキャンセルし、全員にポイントを返還します",
+			Description: i18n.TranslateText(locale, "command.bet.cancel_option.description"),
 			Emoji:       &discord.ComponentEmoji{Name: "❌"},
 		})
 		for _, opt := range options {
@@ -496,12 +501,12 @@ func handleDecideButton(c *components.Components, event *events.ComponentInterac
 
 		if err := event.Modal(discord.NewModalCreateBuilder().
 			SetCustomID(fmt.Sprintf("bet:decide:%s", hostID)).
-			SetTitle("結果を決定").
+			SetTitle(i18n.TranslateText(locale, "command.bet.modal.decide.title")).
 			SetComponents(
-				discord.NewLabel("勝利した選択肢（複数選択可）",
+				discord.NewLabel(i18n.TranslateText(locale, "command.bet.modal.decide.input.winner.label"),
 					discord.StringSelectMenuComponent{
 						CustomID:    "winner",
-						Placeholder: "勝利した選択肢を選択（キャンセル可）",
+						Placeholder: i18n.TranslateText(locale, "command.bet.modal.decide.input.winner.placeholder"),
 						Options:     selectOptions,
 						MinValues:   ptr(1),
 						MaxValues:   len(selectOptions),
@@ -519,6 +524,7 @@ func handleDecideButton(c *components.Components, event *events.ComponentInterac
 
 // handleDecideResult handles the result decision
 func handleDecideResult(c *components.Components, event *events.ModalSubmitInteractionCreate) errors.Error {
+	locale := event.Locale()
 	parts := strings.Split(event.Data.CustomID, ":")
 	if len(parts) < 3 {
 		return errors.NewError(fmt.Errorf("invalid custom ID"))
@@ -560,7 +566,7 @@ func handleDecideResult(c *components.Components, event *events.ModalSubmitInter
 		// Double check ownership
 		if !betHost.IsOwner(event.User().ID) {
 			if err := event.RespondMessage(discord.NewMessageBuilder().
-				SetContent("結果の決定は主催者のみが行えます。").
+				SetContent(i18n.TranslateText(locale, "command.bet.error.only_organizer_decide")).
 				SetFlags(discord.MessageFlagEphemeral)); err != nil {
 				return err
 			}
@@ -596,7 +602,7 @@ func handleDecideResult(c *components.Components, event *events.ModalSubmitInter
 			betHost.Winners = ""
 			tx.Save(&betHost)
 
-			resultMessage = fmt.Sprintf("ベットはキャンセルされました。合計%dpt が返金されました。", totalRefunded)
+			resultMessage = fmt.Sprintf(i18n.TranslateText(locale, "command.bet.message.cancelled"), totalRefunded)
 		} else {
 			// Normal win: distribute to winners
 			// Calculate total pool
@@ -651,7 +657,7 @@ func handleDecideResult(c *components.Components, event *events.ModalSubmitInter
 				winnerNames[i] = opt.OptionText
 			}
 
-			resultMessage = fmt.Sprintf("# 勝利: %s\n結果が決定されました。\n総額: %dpt が分配されました。", strings.Join(winnerNames, ", "), totalPool)
+			resultMessage = fmt.Sprintf(i18n.TranslateText(locale, "command.bet.message.result"), strings.Join(winnerNames, ", "), totalPool)
 		}
 
 		// Update message
@@ -660,7 +666,7 @@ func handleDecideResult(c *components.Components, event *events.ModalSubmitInter
 			clause.OrderByColumn{Column: clause.Column{Name: "index"}, Desc: false},
 		).Where("host_id = ?", hostID).Find(&options)
 
-		layoutComponents := createBetLayout(&betHost, options, tx)
+		layoutComponents := createBetLayout(&betHost, options, tx, locale)
 
 		// Update message with ComponentV2
 		_, _ = event.Client().Rest.UpdateMessage(betHost.ChannelID, betHost.MessageID, discord.NewMessageBuilder().
@@ -680,6 +686,7 @@ func handleDecideResult(c *components.Components, event *events.ModalSubmitInter
 }
 
 func handleCloseVoteButton(c *components.Components, event *events.ComponentInteractionCreate) errors.Error {
+	locale := event.Locale()
 	parts := strings.Split(event.Data.CustomID(), ":")
 	if len(parts) < 3 {
 		return errors.NewError(fmt.Errorf("invalid custom ID"))
@@ -699,7 +706,7 @@ func handleCloseVoteButton(c *components.Components, event *events.ComponentInte
 		// Check if user is owner
 		if !betHost.IsOwner(event.User().ID) {
 			if err := event.RespondMessage(discord.NewMessageBuilder().
-				SetContent("投票の締め切りは主催者のみが行えます。").
+				SetContent(i18n.TranslateText(locale, "command.bet.error.only_organizer_close")).
 				SetFlags(discord.MessageFlagEphemeral)); err != nil {
 				return err
 			}
@@ -712,12 +719,12 @@ func handleCloseVoteButton(c *components.Components, event *events.ComponentInte
 			return err
 		}
 		// Update bet message
-		if err := updateBetMessage(c, tx, event.Client(), hostID); err != nil {
+		if err := updateBetMessage(c, tx, event.Client(), hostID, locale); err != nil {
 			return err
 		}
 
 		if err := event.RespondMessage(discord.NewMessageBuilder().
-			SetContent("投票を締め切りました。").
+			SetContent(i18n.TranslateText(locale, "command.bet.message.closed")).
 			SetFlags(discord.MessageFlagEphemeral)); err != nil {
 			return err
 		}
