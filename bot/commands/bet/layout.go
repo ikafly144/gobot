@@ -103,11 +103,17 @@ func createBetLayout(host *models.BetHost, options []models.BetOption, db *gorm.
 				}
 			}
 
-			text := discord.NewTextDisplayf("%s %s - "+i18n.TranslateText(locale, "command.bet.layout.option_votes"), optionMarker, opt.OptionText, voteCount, amount)
+			text := discord.NewTextDisplay(fmt.Sprintf("%s %s - ", optionMarker, opt.OptionText) +
+				i18n.BuildContext().
+					WithText("votes", fmt.Sprintf("%d", voteCount)).
+					WithText("points", fmt.Sprintf("%d", amount)).
+					ReplaceText(i18n.TranslateText(locale, "command.bet.layout.option_votes")))
 			if host.Status == string(models.BetStatusVoting) {
 				optionsComponent = optionsComponent.AddComponents(discord.NewSection(text).
 					WithAccessory(discord.NewSecondaryButton(
-						fmt.Sprintf(i18n.TranslateText(locale, "command.bet.button.vote"), opt.OptionText),
+						i18n.BuildContext().
+							WithText("option", opt.OptionText).
+							ReplaceText(i18n.TranslateText(locale, "command.bet.button.vote")),
 						fmt.Sprintf("bet:vote_btn:%s:%s", host.ID, opt.ID),
 					)),
 				)
@@ -117,7 +123,11 @@ func createBetLayout(host *models.BetHost, options []models.BetOption, db *gorm.
 		}
 		optionsComponent = optionsComponent.AddComponents(
 			discord.NewLargeSeparator(),
-			discord.NewTextDisplay(fmt.Sprintf("%s "+i18n.TranslateText(locale, "command.bet.layout.votes_points"), i18n.TranslateText(locale, "command.bet.layout.total_label"), totalVotes, totalAmount)),
+			discord.NewTextDisplay(i18n.TranslateText(locale, "command.bet.layout.total_label")+" "+
+				i18n.BuildContext().
+					WithText("votes", fmt.Sprintf("%d", totalVotes)).
+					WithText("points", fmt.Sprintf("%d", totalAmount)).
+					ReplaceText(i18n.TranslateText(locale, "command.bet.layout.votes_points"))),
 		)
 	} else {
 		optionsComponent = optionsComponent.AddComponents(

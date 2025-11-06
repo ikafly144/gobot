@@ -67,7 +67,9 @@ func handlePollConfig(c *components.Components, event *events.ModalSubmitInterac
 	for _, opt := range options {
 		if utf8.RuneCountInString(opt) > 100 {
 			if err := event.RespondMessage(discord.NewMessageBuilder().
-				SetContentf(i18n.TranslateText(locale, "command.bet.error.option_too_long"), opt).
+				SetContent(i18n.BuildContext().
+					WithText("option", opt).
+					ReplaceText(i18n.TranslateText(locale, "command.bet.error.option_too_long"))).
 				SetFlags(discord.MessageFlagEphemeral)); err != nil {
 				return errors.NewError(err)
 			}
@@ -220,13 +222,19 @@ func handleVoteButton(c *components.Components, event *events.ComponentInteracti
 		if result.Error == nil {
 			if !betHost.AllowVoteDestChange && existingBet.OptionID != optionID {
 				if err := event.RespondMessage(discord.NewMessageBuilder().
-					SetContentf(i18n.TranslateText(locale, "command.bet.error.already_voted_no_change"), existingBet.Option.OptionText, existingBet.Amount).
+					SetContent(i18n.BuildContext().
+						WithText("option", existingBet.Option.OptionText).
+						WithText("amount", fmt.Sprintf("%d", existingBet.Amount)).
+						ReplaceText(i18n.TranslateText(locale, "command.bet.error.already_voted_no_change"))).
 					SetFlags(discord.MessageFlagEphemeral)); err != nil {
 					return err
 				}
 				return nil
 			}
-			status += fmt.Sprintf(i18n.TranslateText(locale, "command.bet.error.already_voted_status"), existingBet.Option.OptionText, existingBet.Amount)
+			status += i18n.BuildContext().
+				WithText("option", existingBet.Option.OptionText).
+				WithText("amount", fmt.Sprintf("%d", existingBet.Amount)).
+				ReplaceText(i18n.TranslateText(locale, "command.bet.error.already_voted_status"))
 		}
 
 		var totalBets int64
@@ -240,12 +248,17 @@ func handleVoteButton(c *components.Components, event *events.ComponentInteracti
 			return err
 		}
 
-		status += fmt.Sprintf(i18n.TranslateText(locale, "command.bet.message.current_stats"), totalBets, totalAmount.Total)
+		status += i18n.BuildContext().
+			WithText("votes", fmt.Sprintf("%d", totalBets)).
+			WithText("total_amount", fmt.Sprintf("%d", totalAmount.Total)).
+			ReplaceText(i18n.TranslateText(locale, "command.bet.message.current_stats"))
 
 		// Show modal to enter bet amount
 		if err := event.Modal(discord.NewModalCreateBuilder().
 			SetCustomID(fmt.Sprintf("bet:vote:%s:%s", hostID, optionID)).
-			SetTitle(fmt.Sprintf(i18n.TranslateText(locale, "command.bet.modal.vote.title"), option.OptionText)).
+			SetTitle(i18n.BuildContext().
+				WithText("option", option.OptionText).
+				ReplaceText(i18n.TranslateText(locale, "command.bet.modal.vote.title"))).
 			SetComponents(
 				discord.NewTextDisplay(status),
 				discord.NewLabel(i18n.TranslateText(locale, "command.bet.modal.vote.input.amount.label"),
@@ -316,7 +329,9 @@ func handleVote(c *components.Components, event *events.ModalSubmitInteractionCr
 
 		if gopoint.Points < amount {
 			if err := event.CreateMessage(discord.NewMessageCreateBuilder().
-				SetContentf(i18n.TranslateText(locale, "command.bet.error.insufficient_points"), gopoint.Points).
+				SetContent(i18n.BuildContext().
+					WithText("points", fmt.Sprintf("%d", gopoint.Points)).
+					ReplaceText(i18n.TranslateText(locale, "command.bet.error.insufficient_points"))).
 				SetFlags(discord.MessageFlagEphemeral).
 				Build()); err != nil {
 				return err
@@ -383,7 +398,9 @@ func handleVote(c *components.Components, event *events.ModalSubmitInteractionCr
 			}
 
 			if err := event.CreateMessage(discord.NewMessageCreateBuilder().
-				SetContentf(i18n.TranslateText(locale, "command.bet.message.updated"), amount).
+				SetContent(i18n.BuildContext().
+					WithText("amount", fmt.Sprintf("%d", amount)).
+					ReplaceText(i18n.TranslateText(locale, "command.bet.message.updated"))).
 				SetFlags(discord.MessageFlagEphemeral).
 				Build()); err != nil {
 				return err
@@ -417,7 +434,9 @@ func handleVote(c *components.Components, event *events.ModalSubmitInteractionCr
 		}
 
 		if err := event.CreateMessage(discord.NewMessageCreateBuilder().
-			SetContentf(i18n.TranslateText(locale, "command.bet.message.voted"), amount).
+			SetContent(i18n.BuildContext().
+				WithText("amount", fmt.Sprintf("%d", amount)).
+				ReplaceText(i18n.TranslateText(locale, "command.bet.message.voted"))).
 			SetFlags(discord.MessageFlagEphemeral).
 			Build()); err != nil {
 			return err
@@ -603,7 +622,9 @@ func handleDecideResult(c *components.Components, event *events.ModalSubmitInter
 			betHost.Winners = ""
 			tx.Save(&betHost)
 
-			resultMessage = fmt.Sprintf(i18n.TranslateText(locale, "command.bet.message.cancelled"), totalRefunded)
+			resultMessage = i18n.BuildContext().
+			WithText("amount", fmt.Sprintf("%d", totalRefunded)).
+			ReplaceText(i18n.TranslateText(locale, "command.bet.message.cancelled"))
 		} else {
 			// Normal win: distribute to winners
 			// Calculate total pool
@@ -658,7 +679,10 @@ func handleDecideResult(c *components.Components, event *events.ModalSubmitInter
 				winnerNames[i] = opt.OptionText
 			}
 
-			resultMessage = fmt.Sprintf(i18n.TranslateText(locale, "command.bet.message.result"), strings.Join(winnerNames, ", "), totalPool)
+			resultMessage = i18n.BuildContext().
+			WithText("winners", strings.Join(winnerNames, ", ")).
+			WithText("total_pool", fmt.Sprintf("%d", totalPool)).
+			ReplaceText(i18n.TranslateText(locale, "command.bet.message.result"))
 		}
 
 		// Update message
